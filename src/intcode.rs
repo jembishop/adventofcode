@@ -2,7 +2,7 @@ use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
 use std::iter::repeat;
 
-const INTCODE_MEM_SIZE: usize = 100_000;
+const INTCODE_MEM_SIZE: usize = 1_000;
 
 #[test]
 fn test_parse_op() {

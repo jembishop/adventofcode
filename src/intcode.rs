@@ -1,188 +1,211 @@
+use num_enum::TryFromPrimitive;
+use std::convert::TryFrom;
 use std::iter::repeat;
+
+const INTCODE_MEM_SIZE: usize = 100_000;
 
 #[test]
 fn test_parse_op() {
-    assert_eq!(parse_op(1002).unwrap(), (vec![false, true, false], 2));
-    assert_eq!(parse_op(11004).unwrap(), (vec![false, true, true], 4));
-    assert_eq!(parse_op(10102).unwrap(), (vec![true, false, true], 2));
-    assert_eq!(parse_op(103).unwrap(), (vec![true, false, false], 3));
-    assert_eq!(parse_op(2).unwrap(), (vec![false, false, false], 2));
-    assert_eq!(parse_op(99).unwrap(), (vec![false, false, false], 99));
+    use IntCodeInstruction::*;
+    use IntCodeMode::*;
+    assert_eq!(
+        parse_op(1002),
+        (vec![Position, Immediate, Position], Multiply)
+    );
+    assert_eq!(
+        parse_op(11004),
+        (vec![Position, Immediate, Immediate], Output)
+    );
+    assert_eq!(
+        parse_op(10102),
+        (vec![Immediate, Position, Immediate], Multiply)
+    );
+    assert_eq!(parse_op(103), (vec![Immediate, Position, Position], Input));
+    assert_eq!(parse_op(2), (vec![Position, Position, Position], Multiply));
+    assert_eq!(parse_op(99), (vec![Position, Position, Position], Halt));
 }
 
 #[test]
 fn test_resolve_flags() {
-    let program = vec![1102, 30, 40, 5, 3, 0, 2];
-    let (flags, opcode) = parse_op(program[0]).unwrap();
-    let arg0 = resolve_flags(&program, 0, 0, &flags);
-    let arg1 = resolve_flags(&program, 0, 1, &flags);
-    assert_eq!(opcode, 2);
+    use IntCodeInstruction::*;
+    let prog = "1102,30,40,5,3,0,2";
+    let comp = IntCodeComputer::parse_program(prog).unwrap();
+    let (flags, opcode) = parse_op(comp.state[0]);
+    let arg0 = resolve_flags(&comp, 0, 0, &flags);
+    let arg1 = resolve_flags(&comp, 0, 1, &flags);
+    assert_eq!(opcode, Multiply);
     assert_eq!(arg0, 30);
     assert_eq!(arg1, 40);
-    let (flags, opcode) = parse_op(program[4]).unwrap();
-    assert_eq!(opcode, 3);
-    let arg0 = resolve_flags(&program, 4, 0, &flags);
-    let arg1 = resolve_flags(&program, 4, 1, &flags);
+    let comp = IntCodeComputer::parse_program(prog).unwrap();
+    let (flags, opcode) = parse_op(comp.state[4]);
+    assert_eq!(opcode, Input);
+    let arg0 = resolve_flags(&comp, 4, 0, &flags);
+    let arg1 = resolve_flags(&comp, 4, 1, &flags);
     assert_eq!(arg0, 1102);
     assert_eq!(arg1, 40);
 }
 
 #[test]
 fn test_execute() {
-    let mut equal_to_8 = IntCodeComputer {
-        state: vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8],pc:0
-    };
+    let prog = "3,9,8,9,10,9,4,9,99,-1,8";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        equal_to_8.execute(&vec![8]).unwrap(),
+        comp.execute(&vec![8]).unwrap(),
         IntCodeOutcome::Finished(vec![1])
-    );
-    let mut equal_to_8 = IntCodeComputer {
-        state: vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8],pc:0
-    };
-    assert_eq!(
-        equal_to_8.execute(&vec![10]).unwrap(),
-        IntCodeOutcome::Finished(vec![0])
-    );
-    let mut less_than_8 = IntCodeComputer {
-        state: vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8],pc:0
-    };
-    assert_eq!(
-        less_than_8.execute(&vec![5]).unwrap(),
-        IntCodeOutcome::Finished(vec![1])
-    );
-    let mut less_than_8 = IntCodeComputer {
-        state: vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8],pc:0
-    };
-    assert_eq!(
-        less_than_8.execute(&vec![20]).unwrap(),
-        IntCodeOutcome::Finished(vec![0])
     );
 
-    let mut equal_to_8_immediate = IntCodeComputer {
-        state: vec![3, 3, 1108, -1, 8, 3, 4, 3, 99],pc:0
-    };
+    let prog = "3,9,7,9,10,9,4,9,99,-1,8";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        equal_to_8_immediate.execute(&vec![8]).unwrap(),
+        comp.execute(&vec![3]).unwrap(),
         IntCodeOutcome::Finished(vec![1])
-    );
-    let mut equal_to_8_immediate = IntCodeComputer {
-        state: vec![3, 3, 1108, -1, 8, 3, 4, 3, 99],pc:0
-    };
-    assert_eq!(
-        equal_to_8_immediate.execute(&vec![10]).unwrap(),
-        IntCodeOutcome::Finished(vec![0])
     );
 
-    let mut less_than_8_immediate = IntCodeComputer {
-        state: vec![3, 3, 1107, -1, 8, 3, 4, 3, 99],pc:0
-    };
+    let prog = "3,3,1108,-1,8,3,4,3,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        less_than_8_immediate.execute(&vec![5]).unwrap(),
+        comp.execute(&vec![8]).unwrap(),
         IntCodeOutcome::Finished(vec![1])
     );
-    let mut less_than_8_immediate = IntCodeComputer {
-        state: vec![3, 3, 1107, -1, 8, 3, 4, 3, 99],pc:0
-    };
+    let prog = "3,3,1108,-1,8,3,4,3,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        less_than_8_immediate.execute(&vec![20]).unwrap(),
+        comp.execute(&vec![10]).unwrap(),
+        IntCodeOutcome::Finished(vec![0])
+    );
+    let prog = "3,3,1107,-1,8,3,4,3,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
+    assert_eq!(
+        comp.execute(&vec![5]).unwrap(),
+        IntCodeOutcome::Finished(vec![1])
+    );
+    let prog = "3,3,1107,-1,8,3,4,3,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
+    assert_eq!(
+        comp.execute(&vec![20]).unwrap(),
         IntCodeOutcome::Finished(vec![0])
     );
 }
 
 #[test]
 fn test_execute_jump() {
-    let mut non_zero = IntCodeComputer {
-        state: vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9],pc:0
-    };
+    let prog = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        non_zero.execute(&vec![8]).unwrap(),
+        comp.execute(&vec![8]).unwrap(),
         IntCodeOutcome::Finished(vec![1])
     );
-    let mut non_zero = IntCodeComputer {
-        state: vec![3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9],pc:0
-    };
+    let prog = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        non_zero.execute(&vec![0]).unwrap(),
+        comp.execute(&vec![0]).unwrap(),
         IntCodeOutcome::Finished(vec![0])
     );
 
-    let mut non_zero_immediate = IntCodeComputer {
-        state: vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1],pc:0
-    };
+    let prog = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        non_zero_immediate.execute(&vec![8]).unwrap(),
+        comp.execute(&vec![8]).unwrap(),
         IntCodeOutcome::Finished(vec![1])
     );
-    let mut non_zero_immediate = IntCodeComputer {
-        state: vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1],pc:0
-    };
+    let prog = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        non_zero_immediate.execute(&vec![0]).unwrap(),
+        comp.execute(&vec![0]).unwrap(),
         IntCodeOutcome::Finished(vec![0])
     );
 }
 
 #[test]
 fn test_execute_complex() {
-    let complex = IntCodeComputer {
-        state: vec![
-            3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36, 98, 0,
-            0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
-            20, 1105, 1, 46, 98, 99,
-        ],pc:0
-    };
+    let prog = "3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,1106,0,36,98,0,\
+                0,1002,21,125,20,4,20,1105,1,46,104,999,1105,1,46,1101,1000,1,20,4,\
+                20,1105,1,46,98,99";
+    let comp = IntCodeComputer::parse_program(prog).unwrap();
     assert_eq!(
-        complex.clone().execute(&vec![8]).unwrap(),
+        comp.clone().execute(&vec![8]).unwrap(),
         IntCodeOutcome::Finished(vec![1000])
     );
     assert_eq!(
-        complex.clone().execute(&vec![18]).unwrap(),
+        comp.clone().execute(&vec![18]).unwrap(),
         IntCodeOutcome::Finished(vec![1001])
     );
     assert_eq!(
-        complex.clone().execute(&vec![3]).unwrap(),
+        comp.clone().execute(&vec![3]).unwrap(),
         IntCodeOutcome::Finished(vec![999])
     );
 }
 
-fn parse_op(op: i64) -> Result<(Vec<bool>, i64), IntCodeError> {
-    let flags = op
-        .to_string()
+#[test]
+fn test_execute_relative() {
+    let prog = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
+    assert_eq!(
+        comp.execute(&vec![]).unwrap(),
+        IntCodeOutcome::Finished(vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99
+        ])
+    );
+}
+
+#[test]
+fn test_execute_big() {
+    let prog = "1102,34915192,34915192,7,4,7,99,0";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
+    assert_eq!(
+        comp.execute(&vec![]).unwrap(),
+        IntCodeOutcome::Finished(vec![1219070632396864])
+    );
+    let prog = "104,1125899906842624,99";
+    let mut comp = IntCodeComputer::parse_program(prog).unwrap();
+    assert_eq!(
+        comp.execute(&vec![]).unwrap(),
+        IntCodeOutcome::Finished(vec![1125899906842624])
+    );
+}
+fn parse_op(op: i64) -> (Vec<IntCodeMode>, IntCodeInstruction) {
+    let op_str = op.to_string();
+    let flags = op_str
         .chars()
         .rev()
         .chain(repeat('0'))
         .skip(2)
         .take(3)
-        .map(|x| match x {
-            '0' => Ok(false),
-            '1' => Ok(true),
-            _ => Err(IntCodeError::BadOp(op)),
-        })
-        .collect::<Result<Vec<bool>, _>>()?;
-    let op_str = op.to_string();
-    let opcode: i64 = if op_str.len() == 1 {
-        op
+        .map(|x| x.to_digit(10).unwrap())
+        .map(|x| IntCodeMode::try_from(x).unwrap())
+        .collect::<Vec<IntCodeMode>>();
+    let opcode = if op_str.len() == 1 {
+        IntCodeInstruction::try_from(op_str.parse::<i32>().unwrap()).unwrap()
     } else {
-        op_str[op_str.len() - 2..].parse()?
+        IntCodeInstruction::try_from(op_str[op_str.len() - 2..].parse::<i32>().unwrap()).unwrap()
     };
-    Ok((flags, opcode))
+    (flags, opcode)
 }
 
-fn resolve_flags(program: &Vec<i64>, i: usize, argno: i64, flags: &Vec<bool>) -> i64 {
+fn resolve_flags(comp: &IntCodeComputer, i: usize, argno: i64, flags: &Vec<IntCodeMode>) -> i64 {
+    use IntCodeMode::*;
+    let prog = &comp.state;
     let argno = argno as usize;
-    if flags[argno] {
-        program[i + argno + 1]
-    } else {
-        program[program[i + argno + 1] as usize]
+    match flags[argno] {
+        Position => prog[prog[i + argno + 1] as usize],
+        Immediate => prog[i + argno + 1],
+        Relative => prog[(prog[i + argno + 1] + comp.relative_base) as usize],
     }
+}
+
+#[derive(Debug, TryFromPrimitive, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
+enum IntCodeMode {
+    Position = 0,
+    Immediate = 1,
+    Relative = 2,
 }
 
 #[derive(Debug)]
 pub enum IntCodeError {
     CannotLoadProgram,
     CannotParseProgram,
-    BadOpcode(i64),
-    BadOp(i64),
+    BadOpcode(IntCodeInstruction),
 }
 
 impl From<std::num::ParseIntError> for IntCodeError {
@@ -197,72 +220,109 @@ pub enum IntCodeOutcome {
     NeedInput(Vec<i64>),
 }
 
+#[derive(Debug, TryFromPrimitive, Copy, Clone, PartialEq, Eq)]
+#[repr(i32)]
+pub enum IntCodeInstruction {
+    Add = 1,
+    Multiply,
+    Input,
+    Output,
+    JumpNotEqualZero,
+    JumpEqualZero,
+    Less,
+    Equal,
+    ChangeRelativeBase,
+    Halt = 99,
+}
 #[derive(PartialEq, Debug, Clone)]
 pub struct IntCodeComputer {
     state: Vec<i64>,
-    pc: usize
+    pc: usize,
+    relative_base: i64,
 }
 
 impl IntCodeComputer {
     pub fn parse_program(contents: &str) -> Result<Self, IntCodeError> {
-        Ok(Self {
+        let mut comp = Self {
             state: contents
                 .split(",")
                 .map(|el| el.parse::<i64>())
-                .collect::<Result<Vec<i64>, _>>()?,pc:0
-        })
+                .collect::<Result<Vec<i64>, _>>()?,
+            pc: 0,
+            relative_base: 0,
+        };
+        comp.state.append(&mut vec![0; INTCODE_MEM_SIZE]);
+        Ok(comp)
     }
     pub fn execute(&mut self, input: &Vec<i64>) -> Result<IntCodeOutcome, IntCodeError> {
+        use IntCodeInstruction::*;
+        use IntCodeOutcome::*;
         let mut input = input.iter();
         let mut output = vec![];
         loop {
             let op = self.state[self.pc];
-            let (flags, opcode) = parse_op(op)?;
-            if opcode == 99 {
-                break;
+            let (flags, opcode) = parse_op(op);
+
+            if opcode == Halt {
+                return Ok(Finished(output));
             };
             match opcode {
-                1 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
-                    let arg2 = self.state[self.pc + 3] as usize;
+                Add => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
+                    let offset = if flags[2] == IntCodeMode::Relative {
+                        self.relative_base
+                    } else {
+                        0
+                    };
+                    let arg2 = (self.state[self.pc + 3] + offset) as usize;
                     self.state[arg2] = arg0 + arg1;
                     self.pc += 4
                 }
-                2 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
-                    let arg2 = self.state[self.pc + 3] as usize;
+                Multiply => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
+                    let offset = if flags[2] == IntCodeMode::Relative {
+                        self.relative_base
+                    } else {
+                        0
+                    };
+                    let arg2 = (self.state[self.pc + 3] + offset) as usize;
                     self.state[arg2] = arg0 * arg1;
                     self.pc += 4
                 }
-                3 => {
-                    let arg0 = self.state[self.pc + 1] as usize;
+                Input => {
+                    let offset = if flags[0] == IntCodeMode::Relative {
+                        self.relative_base
+                    } else {
+                        0
+                    };
+                    let arg0 = (self.state[self.pc + 1] + offset) as usize;
                     self.state[arg0] = match input.next() {
                         Some(x) => {
                             self.pc += 2;
                             *x
                         }
-                        None => return Ok(IntCodeOutcome::NeedInput(output)),
+                        None => return Ok(NeedInput(output)),
                     };
                 }
-                4 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
+                Output => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
                     output.push(arg0 as i64);
                     self.pc += 2
                 }
-                5 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
+                JumpNotEqualZero => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
                     if arg0 != 0 {
                         self.pc = arg1 as usize;
                     } else {
                         self.pc += 3;
                     }
                 }
-                6 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
+                JumpEqualZero => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
                     if arg0 == 0 {
                         self.pc = arg1 as usize;
                     } else {
@@ -270,10 +330,15 @@ impl IntCodeComputer {
                     }
                 }
 
-                7 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
-                    let arg2 = self.state[self.pc + 3] as usize;
+                Less => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
+                    let offset = if flags[2] == IntCodeMode::Relative {
+                        self.relative_base
+                    } else {
+                        0
+                    };
+                    let arg2 = (self.state[self.pc + 3] + offset) as usize;
                     if arg0 < arg1 {
                         self.state[arg2] = 1;
                     } else {
@@ -281,10 +346,15 @@ impl IntCodeComputer {
                     }
                     self.pc += 4
                 }
-                8 => {
-                    let arg0 = resolve_flags(&self.state, self.pc, 0, &flags);
-                    let arg1 = resolve_flags(&self.state, self.pc, 1, &flags);
-                    let arg2 = self.state[self.pc + 3] as usize;
+                Equal => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    let arg1 = resolve_flags(&self, self.pc, 1, &flags);
+                    let offset = if flags[2] == IntCodeMode::Relative {
+                        self.relative_base
+                    } else {
+                        0
+                    };
+                    let arg2 = (self.state[self.pc + 3] + offset) as usize;
                     if arg0 == arg1 {
                         self.state[arg2] = 1;
                     } else {
@@ -292,10 +362,14 @@ impl IntCodeComputer {
                     }
                     self.pc += 4
                 }
+                ChangeRelativeBase => {
+                    let arg0 = resolve_flags(&self, self.pc, 0, &flags);
+                    self.relative_base += arg0;
+                    self.pc += 2;
+                }
 
                 e @ _ => return Err(IntCodeError::BadOpcode(e)),
             }
         }
-        Ok(IntCodeOutcome::Finished(output))
     }
 }

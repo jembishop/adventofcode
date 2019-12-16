@@ -1,4 +1,5 @@
 use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 use std::convert::TryFrom;
 use std::iter::repeat;
 
@@ -234,11 +235,14 @@ pub enum IntCodeInstruction {
     ChangeRelativeBase,
     Halt = 99,
 }
-#[derive(PartialEq, Debug, Clone)]
+
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct IntCodeComputer {
-    state: Vec<i64>,
-    pc: usize,
-    relative_base: i64,
+    pub state: Vec<i64>,
+    pub pc: usize,
+    pub relative_base: i64,
+    pub input_buffer: Vec<i64>, 
+    pub input_buffer_idx: usize,
 }
 
 impl IntCodeComputer {
@@ -250,6 +254,8 @@ impl IntCodeComputer {
                 .collect::<Result<Vec<i64>, _>>()?,
             pc: 0,
             relative_base: 0,
+            input_buffer: vec![],
+            input_buffer_idx: 0,
         };
         comp.state.append(&mut vec![0; INTCODE_MEM_SIZE]);
         Ok(comp)
@@ -257,7 +263,8 @@ impl IntCodeComputer {
     pub fn execute(&mut self, input: &Vec<i64>) -> Result<IntCodeOutcome, IntCodeError> {
         use IntCodeInstruction::*;
         use IntCodeOutcome::*;
-        let mut input = input.iter();
+        self.input_buffer = input.clone();
+        self.input_buffer_idx = 0;
         let mut output = vec![];
         loop {
             let op = self.state[self.pc];
@@ -298,13 +305,14 @@ impl IntCodeComputer {
                         0
                     };
                     let arg0 = (self.state[self.pc + 1] + offset) as usize;
-                    self.state[arg0] = match input.next() {
-                        Some(x) => {
-                            self.pc += 2;
-                            *x
-                        }
-                        None => return Ok(NeedInput(output)),
-                    };
+                    self.state[arg0] = if self.input_buffer_idx == self.input_buffer.len() {
+                        return Ok(NeedInput(output));
+                    } else {
+                        self.pc += 2;
+                        let x = self.input_buffer[self.input_buffer_idx];
+                        self.input_buffer_idx += 1;
+                        x
+                    }
                 }
                 Output => {
                     let arg0 = resolve_flags(&self, self.pc, 0, &flags);

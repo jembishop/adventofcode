@@ -86,8 +86,8 @@ fn main() {
     file.read_to_string(&mut contents).unwrap();
     let input = &contents.trim().to_string();
     let parsed = parse(input);
-    let fuel = ore_req(&parsed);
-    println!("{:#?}", fuel);
+    let ore = trillion_fuel(&parsed);
+    println!("{:#?}", ore);
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -127,13 +127,38 @@ fn make_levels(reactions: &Vec<Reaction>) -> HashMap<&String, u32> {
     levels
 }
 
+fn trillion_fuel(reactions: &Vec<Reaction>) -> u64 {
+    //didn't even work in the end due to overflow, just guessed \_:)_/
+    let mut lower = 1;
+    let mut upper = 1_893_569;
+    let target = 1_000_000_000_000;
+    let mut rough = loop {
+        let r1 = ore_req(reactions, lower);
+        let r2 = ore_req(reactions, upper);
+        println!("{}", r2);
+        assert!(r2 > target);
+        let new = (lower + upper) / 2;
+        let rnew = ore_req(reactions, new);
+        if ((target - 1000)..(target - 1000)).contains(&rnew) {
+            break rnew;
+        }
+        if target > rnew {
+            lower = rnew
+        } else {
+            upper = rnew
+        }
+    };
+    while ore_req(reactions, rough) < target {
+        rough += 1
+    }
+    rough - 1
+}
 
-
-fn ore_req(reactions: &Vec<Reaction>) -> u64 {
+fn ore_req(reactions: &Vec<Reaction>, fuel: u64) -> u64 {
     //this code is absolute shit
     let mut ing_list: HashMap<String, u64> = HashMap::new();
     let levels = make_levels(&reactions);
-    ing_list.insert("FUEL".to_string(), 1);
+    ing_list.insert("FUEL".to_string(), fuel);
     while !(ing_list.contains_key("ORE") && ing_list.len() == 1) {
         let key_list = ing_list.keys().map(|x| x.clone()).collect::<Vec<String>>();
         let max_level = key_list
@@ -163,7 +188,6 @@ fn ore_req(reactions: &Vec<Reaction>) -> u64 {
             }
             ing_list.remove(name);
         }
-        println!("{:?}", ing_list);
     }
     *ing_list.get("ORE").unwrap()
 }

@@ -21,21 +21,11 @@ enum Tile {
 }
 
 fn main() {
-    let mut file = File::open("input/18.txt").unwrap();
+    let mut file = File::open("nhrinput2.txt").unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let input = contents.trim().to_string();
-//let input = "#################
-//#i.G..c...e..H.p#
-//########.########
-//#j.A..b...f..D.o#
-//########@########
-//#k.E..a...g..B.n#
-//########.########
-//#l.F..d...h..C.m#
-//#################".to_string();
-    let (map, start) = parse(&input);
-    //print_map(&map);
+    let (map, starts) = parse(&input);
     let key_list = map
         .iter()
         .enumerate()
@@ -49,25 +39,22 @@ fn main() {
         .collect::<Vec<[i64; 2]>>();
     let mut best_dist = 1000000;
     let nn = 10000;
-    let proto = vec![4, 0, 0, 0, 0, 0, 0, 2, 0, 2, 1, 4, 4, 5, 2, 0, 1, 1, 0, 2, 0, 6, 7, 3, 0, 0];
+    let proto = vec![0; 40];
     let mut vs = vec![proto; nn];
-    //let mut cache = HashMap::new();
     loop {
-        //        println!("{}", cache.len());
         let mut nvsh = vec![];
         for v in vs.iter_mut().skip(1) {
             mutate(v);
-            let (dist, path) = simulate(&map, &key_list, start, &v);
+            let (dist, path) = simulate(&map, &key_list, &starts, &v);
             nvsh.push((v.clone(), dist));
             if dist <= best_dist {
                 best_dist = dist;
                 println!("{}", dist);
                 println!("{}", path);
-               println!("{:?}", v);
+                println!("{:?}", v);
             }
         }
         nvsh.sort_by_key(|x| x.1);
-        //println!(" best of batch {:?}", nvsh[0]);
         vs = nvsh
             .into_iter()
             .map(|x| x.0)
@@ -78,23 +65,22 @@ fn main() {
     }
 }
 
-fn mutate(v: &mut Vec<usize>) {
+fn mutate(v: &mut Vec<i64>) {
     for i in v.iter_mut() {
         let mut rand = rand::thread_rng();
         let rand: i8 = rand.gen();
         let fff = 11;
         let new = *i as i8 + (rand % fff - fff / 2);
-        if new >= 0 {
-            *i = (new as usize) % 10;
+        if new >= -1 {
+            *i = (new as i64) % 10;
         }
     }
 }
 fn simulate(
     map: &Vec<Vec<Tile>>,
     key_list: &Vec<[i64; 2]>,
-    start: [i64; 2],
-    policy: &Vec<usize>,
-    //   cache: &mut HashMap<Vec<usize>, (i64, String)>
+    starts: &Vec<[i64; 2]>,
+    policy: &Vec<i64>,
 ) -> (i64, String) {
     //    match cache.get(policy) {
     //        Some(x) => {println!("hit!"); return x.clone()},
@@ -103,31 +89,40 @@ fn simulate(
     let mut key_list = key_list.clone();
     let mut map = map.clone();
     let mut dist = 0;
-    let mut new_key = start;
     let mut path = String::new();
     let mut counter = 0;
+    let mut new_keyz = starts.clone(); 
     let ret = loop {
-        let mut nk = new_keys(&mut map, new_key, &key_list);
-        if nk.len() == 0 {
+        for new_key in new_keyz.iter_mut() {
+
+            let mut nk = new_keys(&mut map, *new_key, &key_list);
+            nk.sort_by_key(|x| x.1);
+            //let mut rand = rand::thread_rng();
+            // let rand: usize = rand.gen();
+            //let new =  rand % nk.len();
+            if nk.len() == 0 {
+        //        println!("skipped...");
+                continue;
+            };
+            let new = policy[counter];
+            if new != -1 {
+                let new = new as usize % nk.len();
+                *new_key = nk[new].0;
+                dist += nk[new].1;
+                path.push(unlock(&mut map, *new_key));
+                key_list = key_list
+                    .into_iter()
+                    .filter(|x| *x != *new_key)
+                    .collect::<Vec<_>>();
+            } else {
+                //path.push('#');
+            };
+            counter += 1;
+        }
+        if path.len() == 26 {
             break (dist, path);
         };
-    //    println!("on key grab {} there are {:?} keys now available", counter, nk.len());
-        nk.sort_by_key(|x| x.1);
-        //let mut rand = rand::thread_rng();
-        // let rand: usize = rand.gen();
-        //let new =  rand % nk.len();
-        let new = policy[counter] % nk.len();
-        counter += 1;
-        new_key = nk[new].0;
-        dist += nk[new].1;
-        path.push(unlock(&mut map, new_key));
-        //        println!("total dist {}", dist);
-        key_list = key_list
-            .into_iter()
-            .filter(|x| *x != new_key)
-            .collect::<Vec<_>>();
     };
-    //cache.insert(policy.clone(), ret.clone());
     ret
 }
 fn print_map(map: &Vec<Vec<Tile>>) {
@@ -174,9 +169,9 @@ fn unlock(map: &mut Vec<Vec<Tile>>, keycoord: [i64; 2]) -> char {
     key
 }
 
-fn parse(input: &str) -> (Vec<Vec<Tile>>, [i64; 2]) {
+fn parse(input: &str) -> (Vec<Vec<Tile>>, Vec<[i64; 2]>) {
     use Tile::*;
-    let mut pos = [0, 0];
+    let mut poss = vec![];
     let x = input
         .lines()
         .enumerate()
@@ -186,10 +181,10 @@ fn parse(input: &str) -> (Vec<Vec<Tile>>, [i64; 2]) {
                 .map(|(x, p)| match p {
                     p @ 'a'..='z' => Key(p),
                     p @ 'A'..='Z' => Door(p),
-                    '/'|'#'| '\u{2588}' => Wall,
-                    '.'| ' ' => Clear(ClearType::Norm),
+                    '/' | '#' | '\u{2588}' => Wall,
+                    '.' | ' ' => Clear(ClearType::Norm),
                     '@' => {
-                        pos = [x as i64, y as i64];
+                        poss.push([x as i64, y as i64]);
                         Clear(ClearType::Norm)
                     }
                     i => unreachable!(i),
@@ -197,7 +192,7 @@ fn parse(input: &str) -> (Vec<Vec<Tile>>, [i64; 2]) {
                 .collect::<Vec<Tile>>()
         })
         .collect::<Vec<Vec<Tile>>>();
-    (x, pos)
+    (x, poss)
 }
 
 fn new_keys(

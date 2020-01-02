@@ -14,15 +14,9 @@ fn main() {
     let mut comp = IntCodeComputer::parse_program(&contents).unwrap();
     comp.execute(&vec![]).unwrap();
     //println!("{}", to_ascii(&x));
-    let mut failure_mode: Vec<String> = vec![];
-    let mut cache = HashMap::new();
-    for _ in 0..500000 {
+    loop {
         let mut comp = comp.clone();
-        let mut rng = rand::thread_rng();
-        let prog = rand_prog(4);
-        if cache.get(&prog) != None {
-            continue;
-        }
+        let prog = rand_prog(8);
         let main = prog.bytes().map(|x| x as u8 as i64).collect::<Vec<i64>>();
         let x = comp.execute(&main).unwrap();
         let out = to_ascii(&x);
@@ -32,28 +26,10 @@ fn main() {
                 println!("SUCCESSSSSSS");
                 println!("{}", prog);
                 println!("{}", x);
-                break;
+                return;
             }
-            Outcome::Failure(y) => {
-                let idx = match failure_mode.iter().position(|x| x == &y) {
-                    Some(x) => x,
-                    None => {
-                                        println!("{}", prog);
-                        ////               println!("{}", y);
-                        //                     println!("{}", failure_mode.len());
-                        //println!("{:?}", failure_mode);
-                        failure_mode.push(y.clone());
-                        failure_mode.len() - 1
-                    }
-                };
-                cache.insert(prog.clone(), idx);
-            }
+            Outcome::Failure(y) => {}
         }
-    }
-    println!("-------FM------");
-    for el in failure_mode.iter() {
-        let l = el.split('\n').collect::<Vec<_>>();
-        println!("{}", l[l.len() - 4]);
     }
 }
 
@@ -70,6 +46,11 @@ enum Sen {
     B,
     C,
     D,
+    E,
+    F,
+    G,
+    H,
+    I,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -102,6 +83,11 @@ fn rand_prog(len: usize) -> String {
         Arg1::Sen(B),
         Arg1::Sen(C),
         Arg1::Sen(D),
+        Arg1::Sen(E),
+        Arg1::Sen(F),
+        Arg1::Sen(G),
+        Arg1::Sen(H),
+        Arg1::Sen(I),
         Arg1::Reg(J),
         Arg1::Reg(T),
     ];
@@ -153,7 +139,7 @@ fn rand_prog(len: usize) -> String {
         };
         pstring.push_str(&format!("{:?} {} {:?}\n", op, l, arg2));
     }
-    pstring.push_str(&"WALK\n".to_string());
+    pstring.push_str(&"RUN\n".to_string());
     pstring
 }
 

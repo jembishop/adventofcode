@@ -33,10 +33,34 @@ cut -1";
 }
 fn main() {
     let contents = fs::read_to_string("input/22.txt").unwrap();
-    let mut deck = Deck::new(17);
-    let contents = "deal with increment 7";
+    let mut deck = Deck::new(10007);
+    //let contents = "deal into new stack";
+    println!("{:?}", &deck.0[..10]);
+    println!("{:?}", &deck.0[deck.0.len() - 10..]);
+    println!();
+    println!("{:?}", contents);
     shuffle(&contents, &mut deck);
-    println!("{}", deck.0.iter().position(|x| *x == 2019).unwrap());
+    let contents = "deal with increment 7";
+    println!("{:?}", &deck.0[..10]);
+    println!("{:?}", &deck.0[deck.0.len() - 10..]);
+    println!();
+    shuffle(&contents, &mut deck);
+    println!("{:?}", contents);
+    println!("{:?}", &deck.0[..10]);
+    println!("{:?}", &deck.0[deck.0.len() - 10..]);
+    println!();
+    let contents = "cut 4";
+    println!("{:?}", contents);
+    shuffle(&contents, &mut deck);
+    println!("{:?}", &deck.0[..10]);
+    println!("{:?}", &deck.0[deck.0.len() - 10..]);
+    println!();
+    let contents = "deal with increment 5";
+    println!("{:?}", contents);
+    shuffle(&contents, &mut deck);
+    println!("{:?}", &deck.0[..10]);
+    println!("{:?}", &deck.0[deck.0.len() - 10..]);
+
 }
 
 fn shuffle(inp: &str, deck: &mut Deck) {
